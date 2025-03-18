@@ -1,0 +1,2 @@
+int c = a + b * 2;
+bool result = (a == b) && (c > 0);

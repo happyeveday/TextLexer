@@ -40,6 +40,8 @@ unordered_map<string, TokenType> operators = {
     {"*", TOKEN_OP}, 
     {"/", TOKEN_OP},
     {"=", TOKEN_OP}, 
+    {"&", TOKEN_OP},
+    {"|", TOKEN_OP}, 
     {"==", TOKEN_OP}, 
     {"!=", TOKEN_OP}, 
     {"<", TOKEN_OP},
@@ -107,6 +109,11 @@ private:
     // 识别标识符或关键字
     Token recognizeIdOrKeyword() {
         string value;
+        if (isdigit(peek())) {
+            // 如果以数字开头，则是非法标识符
+            while (isdigit(peek()) || isalpha(peek())) value += advance();
+            return {TOKEN_ERROR, "非法标识符: " + value};
+        }
         while (isalnum(peek()) || peek() == '_') value += advance();
         if (keywords.find(value) != keywords.end()) {
             return {keywords[value], value};
@@ -117,34 +124,59 @@ private:
     // 识别整常数或浮点数
     Token recognizeNumber() {
         string value;
+        bool hasDecimalPoint = false; // 是否包含小数点
+        bool isError = false; // 是否非法浮点数
+    
+        // 读取整数部分
         while (isdigit(peek())) value += advance();
+    
+        // 读取小数点和小数部分
         if (peek() == '.') {
             value += advance(); // 读取小数点
+            hasDecimalPoint = true;
+    
+            // 读取小数部分
             if (!isdigit(peek())) {
-                return {TOKEN_ERROR, "非法浮点数格式: " + value + peek()};
+                isError = true; // 小数点后没有数字，非法浮点数
+            } else {
+                while (isdigit(peek())) value += advance();
             }
-            while (isdigit(peek())) value += advance();
-            return {TOKEN_FLOAT, value}; // 返回浮点数
+    
+            // 检查是否有多余的小数点
+            if (peek() == '.') {
+                isError = true; // 多个小数点，非法浮点数
+                value += advance(); // 读取多余的小数点
+                while (isdigit(peek())) value += advance(); // 继续读取后续数字
+            }
         }
-        return {TOKEN_NUM, value}; // 返回整常数
+    
+        // 检查是否以字母或其他非法字符结尾
+        if (isalpha(peek()) || peek() == '_') {
+            isError = true; // 数字后接字母或下划线，非法标识符
+            while (isalnum(peek()) || peek() == '_') value += advance(); // 继续读取后续字符
+        }
+    
+        // 返回结果
+        if (isError) {
+            return {TOKEN_ERROR, "非法格式: " + value};
+        } else if (hasDecimalPoint) {
+            return {TOKEN_FLOAT, value}; // 返回浮点数
+        } else {
+            return {TOKEN_NUM, value}; // 返回整常数
+        }
     }
 
     // 识别运算符或分隔符
     Token recognizeOpOrSep() {
         string value;
         value += advance(); // 先读取一个字符
-
-        // 处理 ++ 和 --
-        if ((value == "+" || value == "-") && peek() == value[0]) {
-            value += advance();
-            return {TOKEN_OP, value};
-        }
-
+    
         // 处理双字符运算符（如 >=, <=, ==, !=, &&, ||）
         if (operators.find(value + peek()) != operators.end()) {
-        value += advance();
+            value += advance();
+            return {operators[value], value};
         }
-
+    
         // 识别单字符运算符或分隔符
         if (operators.find(value) != operators.end()) {
             return {TOKEN_OP, value};
@@ -152,7 +184,7 @@ private:
         if (separators.find(value) != separators.end()) {
             return {TOKEN_SEP, value};
         }
-
+    
         return {TOKEN_ERROR, "非法符号: " + value};
     }
 
