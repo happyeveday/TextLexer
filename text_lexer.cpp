@@ -153,9 +153,9 @@ private:
     }
 
     // 输出错误信息
-    Token makeToken(TokenType type, const string &value)
+    Token makeToken(TokenType type, const string &value) 
     {
-        return {type, value, line, column - value.length()};
+        return {type, value, line, column - static_cast<int>(value.length())};
     }
 
     Token makeError(const string &msg)

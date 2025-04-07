@@ -1,0 +1,18 @@
+[BLOCK]
+  [DECLS]
+    [LIST]
+      [TYPE] int
+      [ID] a
+      [EXPR]
+        [NUM] 10
+    [LIST]
+      [TYPE] float
+      [ID] b
+      [EXPR]
+        [FLOAT] 3.14
+    [LIST]
+      [TYPE] bool
+      [ID] flag
+      [BOOL]
+        [BOOLVAL] true
+  [STMTS]

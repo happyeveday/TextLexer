@@ -1,0 +1,14 @@
+[BLOCK]
+  [DECLS]
+  [STMTS]
+    [IF]
+      [BOOL]
+        [OP] >
+          [ID] a
+          [NUM] 5
+      [BLOCK]
+        [WRITE]
+          [ID] a
+      [BLOCK]
+        [WRITE]
+          [ID] b
