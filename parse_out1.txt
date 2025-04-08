@@ -13,6 +13,6 @@
     [LIST]
       [TYPE] bool
       [ID] flag
-      [BOOL]
+      [EXPR]
         [BOOLVAL] true
   [STMTS]

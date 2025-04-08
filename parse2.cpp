@@ -77,40 +77,6 @@ private:
     vector<Token> tokens;
     size_t current = 0;
 
-    TreeNode* parseDecl() {
-        cerr << "DEBUG: Parsing declaration, current token: " << peek().value << endl;
-        // 解析类型关键字
-        string type;
-        if (match(TOKEN_KEYWORD, "int")) {
-            type = "int";
-        } else if (match(TOKEN_KEYWORD, "float")) {
-            type = "float";
-        } else if (match(TOKEN_KEYWORD, "bool")) {
-            type = "bool";
-        } else {
-            error("Expected type keyword in declaration");
-        }
-        
-        TreeNode* declNode = new TreeNode(NODE_LIST);
-        declNode->children.push_back(new TreeNode(NODE_TYPE, type));
-    
-        // 解析变量声明（允许带初始化）
-        do {
-            consume(TOKEN_ID, "Expected variable name");
-            TreeNode* idNode = new TreeNode(NODE_ID, previous().value);
-            declNode->children.push_back(idNode);
-    
-            // 处理初始化
-            if (match(TOKEN_OP, "=")) {
-                TreeNode* initNode = (type == "bool") ? parseBoolExpr() : parseArithmeticExpr();
-                declNode->children.push_back(initNode);
-            }
-        } while (match(TOKEN_SEP, ",")); // 支持多变量声明，如 int a,b=2;
-    
-        consume(TOKEN_SEP, ";", "Expected ';' after declaration");
-        return declNode;
-    }
-
     TreeNode* parseStmts() {
         TreeNode* stmtsNode = new TreeNode(NODE_STMTS);
         while (!isAtEnd() && !check(TOKEN_SEP, "}")) {
@@ -253,7 +219,9 @@ private:
         error(message);
     }
 
-    TreeNode *parseArithmeticExpr() {
+    // 算符优先分析 - 算术表达式
+    TreeNode *parseArithmeticExpr()
+    {
         // 添加空表达式检查
         if (check(TOKEN_SEP, ";")) {
             error("Empty expression not allowed here");
@@ -262,132 +230,169 @@ private:
         // 使用算符优先分析法处理算术表达式
         stack<TreeNode *> nodeStack;
         stack<string> opStack;
-    
+
         // 算符优先级表
         unordered_map<string, int> precedence = {
             {"||", 1}, {"&&", 2},
             {"==", 3}, {"!=", 3}, {"<", 3}, {"<=", 3}, {">", 3}, {">=", 3},
             {"+", 4}, {"-", 4},
-            {"*", 5}, {"/", 5}, {"%", 5},
+            {"*", 5}, {"/", 5},
             {"!", 6}, {"++", 6}, {"--", 6}};
-    
-        auto processOp = [&]() {
+
+        auto processOp = [&]()
+        {
             string op = opStack.top();
             opStack.pop();
-    
+
             TreeNode *node = new TreeNode(NODE_OP, op);
-    
+
             // 处理一元运算符
-            if (op == "!" || op == "++" || op == "--") {
+            if (op == "!" || op == "++" || op == "--")
+            {
                 if (nodeStack.empty())
                     error("Missing operand for unary operator");
                 node->children.push_back(nodeStack.top());
                 nodeStack.pop();
             }
             // 处理二元运算符
-            else {
+            else
+            {
                 if (nodeStack.size() < 2)
                     error("Missing operands for binary operator");
                 TreeNode *right = nodeStack.top();
                 nodeStack.pop();
                 TreeNode *left = nodeStack.top();
                 nodeStack.pop();
-    
+
                 node->children.push_back(left);
                 node->children.push_back(right);
             }
-    
+
             nodeStack.push(node);
         };
-    
-        while (!isAtEnd() && !check(TOKEN_SEP, ";") && !check(TOKEN_SEP, ",") &&
-            !check(TOKEN_KEYWORD, "then") && !check(TOKEN_KEYWORD, "do") &&
-            !check(TOKEN_KEYWORD, "else") && !check(TOKEN_SEP, "{")) {  // 添加对{的检查
-            if (match(TOKEN_SEP, "(")) {
+
+        while (!isAtEnd() && !check(TOKEN_SEP, ")") && !check(TOKEN_SEP, ";") &&
+               !check(TOKEN_SEP, ",") && !check(TOKEN_KEYWORD, "then") &&
+               !check(TOKEN_KEYWORD, "do") && !check(TOKEN_KEYWORD, "else"))
+        {
+            if (match(TOKEN_SEP, "("))
+            {
                 opStack.push("(");
-            } else if (match(TOKEN_SEP, ")")) {
-                while (!opStack.empty() && opStack.top() != "(") {
+            }
+            else if (match(TOKEN_SEP, ")"))
+            {
+                while (!opStack.empty() && opStack.top() != "(")
+                {
                     processOp();
                 }
-                if (opStack.empty()) {
+                if (opStack.empty())
                     error("Unmatched parentheses");
-                }
                 opStack.pop(); // 弹出 "("
-            } else if (match(TOKEN_OP)) {
+            }
+            else if (match(TOKEN_OP))
+            {
                 string op = previous().value;
-    
+
                 // 处理负号（减号和负号的歧义）
                 if (op == "-" && (nodeStack.empty() ||
-                                (!opStack.empty() && opStack.top() == "("))) {
+                                  (!opStack.empty() && opStack.top() == "(")))
+                {
                     op = "neg"; // 标记为一元负号
                 }
-    
+
                 while (!opStack.empty() && opStack.top() != "(" &&
-                    precedence[opStack.top()] >= precedence[op]) {
+                       precedence[opStack.top()] >= precedence[op])
+                {
                     processOp();
                 }
                 opStack.push(op);
-            } else {
+            }
+            else
+            {
                 // 处理操作数
                 TreeNode *operand = nullptr;
-                if (match(TOKEN_ID)) {
+                if (match(TOKEN_ID))
+                {
                     operand = new TreeNode(NODE_ID, previous().value);
-                } else if (match(TOKEN_NUM)) {
+                }
+                else if (match(TOKEN_NUM))
+                {
                     operand = new TreeNode(NODE_NUM, previous().value);
-                } else if (match(TOKEN_FLOAT)) {
+                }
+                else if (match(TOKEN_FLOAT))
+                {
                     operand = new TreeNode(NODE_FLOAT, previous().value);
-                } else if (match(TOKEN_BOOL)) {
+                }
+                else if (match(TOKEN_BOOL))
+                {
                     operand = new TreeNode(NODE_BOOLVAL, previous().value);
-                } else {
+                }
+                else
+                {
                     error("Expected operand in expression");
                 }
                 nodeStack.push(operand);
             }
         }
-    
+
         // 处理剩余的运算符
-        while (!opStack.empty()) {
-            if (opStack.top() == "(") {
+        while (!opStack.empty())
+        {
+            if (opStack.top() == "(")
                 error("Unmatched parentheses");
-            }
             processOp();
         }
-    
-        if (nodeStack.empty()) {
+
+        if (nodeStack.empty())
             error("Empty expression");
-        }
-        if (nodeStack.size() > 1) {
+        if (nodeStack.size() > 1)
             error("Malformed expression");
-        }
-    
+
         TreeNode *exprNode = new TreeNode(NODE_EXPR);
         exprNode->children.push_back(nodeStack.top());
         return exprNode;
     }
 
-    // 布尔表达式（复用算术表达式的算符优先分析）
-    TreeNode *parseBoolExpr() {
-        TreeNode *left = parseArithmeticExpr();
-        
-        if (check(TOKEN_SEP, "{")) {
-            return left;
+    TreeNode* parseDecl() {
+        cerr << "DEBUG: Parsing declaration, current token: " << peek().value << endl;
+        // 解析类型关键字
+        string type;
+        if (match(TOKEN_KEYWORD, "int")) {
+            type = "int";
+        } else if (match(TOKEN_KEYWORD, "float")) {
+            type = "float";
+        } else if (match(TOKEN_KEYWORD, "bool")) {
+            type = "bool";
+        } else {
+            error("Expected type keyword in declaration");
         }
+        
+        TreeNode* declNode = new TreeNode(NODE_LIST);
+        declNode->children.push_back(new TreeNode(NODE_TYPE, type));
+    
+        // 解析变量声明（允许带初始化）
+        do {
+            consume(TOKEN_ID, "Expected variable name");
+            TreeNode* idNode = new TreeNode(NODE_ID, previous().value);
+            declNode->children.push_back(idNode);
+    
+            // 处理初始化
+            if (match(TOKEN_OP, "=")) {
+                TreeNode* initNode = (type == "bool") ? parseBoolExpr() : parseArithmeticExpr();
+                declNode->children.push_back(initNode);
+            }
+        } while (match(TOKEN_SEP, ",")); // 支持多变量声明，如 int a,b=2;
+    
+        consume(TOKEN_SEP, ";", "Expected ';' after declaration");
+        return declNode;
+    }
 
-        // 处理比较运算符
-        if (check(TOKEN_OP, ">") || check(TOKEN_OP, "<") || 
-            check(TOKEN_OP, ">=") || check(TOKEN_OP, "<=") ||
-            check(TOKEN_OP, "==") || check(TOKEN_OP, "!=")) {
-            Token op = advance();
-            TreeNode *right = parseArithmeticExpr();
-            
-            TreeNode *boolNode = new TreeNode(NODE_BOOL, op.value);
-            boolNode->children.push_back(left);
-            boolNode->children.push_back(right);
-            return boolNode;
-        }
-        
-        // 如果没有比较运算符，直接返回算术表达式
-        return left;
+    // 布尔表达式（复用算术表达式的算符优先分析）
+    TreeNode *parseBoolExpr()
+    {
+        TreeNode *expr = parseArithmeticExpr();
+        expr->type = NODE_BOOL; // 修改节点类型为布尔表达式
+        return expr;
     }
     
     // 声明语句
@@ -477,62 +482,53 @@ private:
         consume(TOKEN_KEYWORD, "if", "Expected 'if'");
         consume(TOKEN_SEP, "(", "Expected '(' after 'if'");
         
-        // 解析条件表达式
+        cerr << "DEBUG: Before parseBoolExpr, current token: " << peek().value << endl;
         TreeNode* cond = parseBoolExpr();
         cerr << "DEBUG: After parseBoolExpr, current token: " << peek().value << endl;
-        consume(TOKEN_SEP, ")", "Expected ')' after condition");
-
-        // 确保消耗{
-        consume(TOKEN_SEP, "{", "Expected '{' to start if block");
+        cerr << "DEBUG: Condition node type: " << (cond ? nodeTypeToString(cond->type) : "null") 
+             << ", value: " << (cond ? cond->value : "null") << endl;
         
-        // 解析then分支
+        consume(TOKEN_SEP, ")", "Expected ')' after condition");
+        
+        // 修改这里，不强制要求花括号
         TreeNode* thenBranch = nullptr;
-        if (match(TOKEN_SEP, "{")) {
+        if (check(TOKEN_SEP, "{")) {
             thenBranch = parseBlock();
         } else {
             // 单条语句的情况
             thenBranch = parseStmt();
-            // 如果stmt以分号结束，需要消耗分号
-            if (check(TOKEN_SEP, ";")) {
-                advance();
-            }
         }
         
         TreeNode* ifNode = new TreeNode(NODE_IF);
         ifNode->children.push_back(cond);
         ifNode->children.push_back(thenBranch);
         
-        // 解析else分支
         if (match(TOKEN_KEYWORD, "else")) {
-            // 确保消耗{
-            consume(TOKEN_SEP, "{", "Expected '{' to start else block");
-            TreeNode* elseBranch = parseBlock();
-            ifNode->children.push_back(elseBranch);
+            if (check(TOKEN_SEP, "{")) {
+                ifNode->children.push_back(parseBlock());
+            } else {
+                ifNode->children.push_back(parseStmt());
+            }
         }
         return ifNode;
     }
 
     // while语句
     TreeNode* parseWhileStmt() 
-{
-    consume(TOKEN_KEYWORD, "while", "Expected 'while'");
-    consume(TOKEN_SEP, "(", "Expected '(' after 'while'");
-    
-    TreeNode* whileNode = new TreeNode(NODE_WHILE);
-    whileNode->children.push_back(parseBoolExpr());
-    
-    // 确保消耗右括号
-    consume(TOKEN_SEP, ")", "Expected ')' after condition");
-    
-    // 直接解析循环体（可以是语句块或单条语句）
-    if (check(TOKEN_SEP, "{")) {
-        whileNode->children.push_back(parseBlock());
-    } else {
+    {
+        consume(TOKEN_KEYWORD, "while", "Expected 'while'");
+        consume(TOKEN_SEP, "(", "Expected '(' after 'while'");
+        
+        TreeNode* whileNode = new TreeNode(NODE_WHILE);
+        whileNode->children.push_back(parseBoolExpr());
+        
+        consume(TOKEN_SEP, ")", "Expected ')' after condition");
+        
+        // 直接解析循环体（可以是语句块或单条语句）
         whileNode->children.push_back(parseStmt());
+        
+        return whileNode;
     }
-    
-    return whileNode;
-}
 
     // for语句
     TreeNode* parseForStmt() {

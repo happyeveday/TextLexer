@@ -1,0 +1,23 @@
+[BLOCK]
+  [DECLS]
+    [LIST]
+      [TYPE] int
+      [ID] c
+      [EXPR]
+        [OP] +
+          [ID] a
+          [OP] *
+            [ID] b
+            [NUM] 2
+    [LIST]
+      [TYPE] bool
+      [ID] result
+      [EXPR]
+        [OP] &&
+          [OP] ==
+            [ID] a
+            [ID] b
+          [OP] >
+            [ID] c
+            [NUM] 0
+  [STMTS]
