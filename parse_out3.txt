@@ -1,0 +1,38 @@
+[BLOCK]
+  [DECLS]
+    [LIST]
+      [TYPE] int
+      [ID] a
+      [EXPR]
+        [NUM] 8
+    [LIST]
+      [TYPE] float
+      [ID] pi
+      [EXPR]
+        [FLOAT] 3.14
+  [STMTS]
+    [WHILE]
+      [BOOL]
+        [OP] >
+          [ID] a
+          [NUM] 0
+      [BLOCK]
+        [WRITE]
+          [ID] a
+        [ASSIGN] --
+          [ID] a
+    [FOR]
+      [LIST]
+        [TYPE] int
+        [ID] i
+        [EXPR]
+          [NUM] 0
+      [BOOL]
+        [OP] <
+          [ID] i
+          [NUM] 10
+      [ASSIGN] ++
+        [ID] i
+      [BLOCK]
+        [WRITE]
+          [ID] i

@@ -222,6 +222,11 @@ private:
     // 算符优先分析 - 算术表达式
     TreeNode *parseArithmeticExpr()
     {
+        // 添加空表达式检查
+        if (check(TOKEN_SEP, ";")) {
+            error("Empty expression not allowed here");
+        }
+        
         // 使用算符优先分析法处理算术表达式
         stack<TreeNode *> nodeStack;
         stack<string> opStack;
@@ -348,6 +353,40 @@ private:
         return exprNode;
     }
 
+    TreeNode* parseDecl() {
+        cerr << "DEBUG: Parsing declaration, current token: " << peek().value << endl;
+        // 解析类型关键字
+        string type;
+        if (match(TOKEN_KEYWORD, "int")) {
+            type = "int";
+        } else if (match(TOKEN_KEYWORD, "float")) {
+            type = "float";
+        } else if (match(TOKEN_KEYWORD, "bool")) {
+            type = "bool";
+        } else {
+            error("Expected type keyword in declaration");
+        }
+        
+        TreeNode* declNode = new TreeNode(NODE_LIST);
+        declNode->children.push_back(new TreeNode(NODE_TYPE, type));
+    
+        // 解析变量声明（允许带初始化）
+        do {
+            consume(TOKEN_ID, "Expected variable name");
+            TreeNode* idNode = new TreeNode(NODE_ID, previous().value);
+            declNode->children.push_back(idNode);
+    
+            // 处理初始化
+            if (match(TOKEN_OP, "=")) {
+                TreeNode* initNode = (type == "bool") ? parseBoolExpr() : parseArithmeticExpr();
+                declNode->children.push_back(initNode);
+            }
+        } while (match(TOKEN_SEP, ",")); // 支持多变量声明，如 int a,b=2;
+    
+        consume(TOKEN_SEP, ";", "Expected ';' after declaration");
+        return declNode;
+    }
+
     // 布尔表达式（复用算术表达式的算符优先分析）
     TreeNode *parseBoolExpr()
     {
@@ -360,76 +399,80 @@ private:
     TreeNode *parseDecls()
     {
         TreeNode* declsNode = new TreeNode(NODE_DECLS);
-    while (!isAtEnd()) {
-        if (check(TOKEN_KEYWORD, "int") || check(TOKEN_KEYWORD, "float") || check(TOKEN_KEYWORD, "bool")) {
-            string type;
-            if (match(TOKEN_KEYWORD, "int")) {
-                type = "int";
-            } else if (match(TOKEN_KEYWORD, "float")) {
-                type = "float";
-            } else if (match(TOKEN_KEYWORD, "bool")) {
-                type = "bool";
+        while (!isAtEnd()) {
+            if (check(TOKEN_KEYWORD, "int") || check(TOKEN_KEYWORD, "float") || check(TOKEN_KEYWORD, "bool")) {
+                string type;
+                if (match(TOKEN_KEYWORD, "int")) {
+                    type = "int";
+                } else if (match(TOKEN_KEYWORD, "float")) {
+                    type = "float";
+                } else if (match(TOKEN_KEYWORD, "bool")) {
+                    type = "bool";
+                } // 闭合if语句块
+    
+                TreeNode* typeNode = new TreeNode(NODE_TYPE, type);
+                TreeNode* declNode = new TreeNode(NODE_LIST);
+                declNode->children.push_back(typeNode);
+    
+                do {
+                    if (match(TOKEN_SEP, ";")) break; // 允许空声明
+                    consume(TOKEN_ID, "Expected variable name in declaration");
+                    TreeNode* idNode = new TreeNode(NODE_ID, previous().value);
+                    declNode->children.push_back(idNode);
+    
+                    if (match(TOKEN_OP, "=")) {
+                        TreeNode* initNode = (type == "bool") ? parseBoolExpr() : parseArithmeticExpr();
+                        declNode->children.push_back(initNode);
+                    }
+                } while (match(TOKEN_SEP, ","));
+    
+                consume(TOKEN_SEP, ";", "Expected ';' after declaration");
+                declsNode->children.push_back(declNode);
+            } else {
+                break; // 无更多声明
             }
-
-            TreeNode* typeNode = new TreeNode(NODE_TYPE, type);
-            TreeNode* declNode = new TreeNode(NODE_LIST);
-            declNode->children.push_back(typeNode);
-
-            do {
-                if (match(TOKEN_SEP, ";")) break; // 允许空声明
-                consume(TOKEN_ID, "Expected variable name in declaration");
-                TreeNode* idNode = new TreeNode(NODE_ID, previous().value);
-                declNode->children.push_back(idNode);
-
-                if (match(TOKEN_OP, "=")) {
-                    TreeNode* initNode = (type == "bool") ? parseBoolExpr() : parseArithmeticExpr();
-                    declNode->children.push_back(initNode);
-                }
-            } while (match(TOKEN_SEP, ","));
-
-            consume(TOKEN_SEP, ";", "Expected ';' after declaration");
-            declsNode->children.push_back(declNode);
-        } else {
-            break; // 无更多声明
         }
-    }
-    return declsNode;
+        return declsNode;
     }
 
     // 赋值语句
-    TreeNode *parseAssignStmt()
-    {
+    TreeNode *parseAssignStmt(bool inForLoop = false) {
         consume(TOKEN_ID, "Expected identifier in assignment");
         TreeNode *idNode = new TreeNode(NODE_ID, previous().value);
 
         string op = peek().value;
+        
+        // 处理自增/自减运算符
+        if (op == "++" || op == "--") {
+            consume(TOKEN_OP, "Expected operator");
+            TreeNode *assignNode = new TreeNode(NODE_ASSIGN, op);
+            assignNode->children.push_back(idNode);
+            if (!inForLoop) {
+                consume(TOKEN_SEP, ";", "Expected ';' after assignment");
+            }
+            return assignNode;
+        }
+        
         consume(TOKEN_OP, "Expected assignment operator");
-
         TreeNode *assignNode = new TreeNode(NODE_ASSIGN, op);
         assignNode->children.push_back(idNode);
 
-        if (op == "=")
-        {
+        if (op == "=") {
             // 需要判断是算术表达式还是布尔表达式
-            // 简单起见，我们根据第一个token来判断
             if (check(TOKEN_BOOL) || check(TOKEN_OP, "!") ||
-                check(TOKEN_ID) || check(TOKEN_SEP, "("))
-            {
-                // 可能是布尔表达式
+                check(TOKEN_ID) || check(TOKEN_SEP, "(")) {
                 assignNode->children.push_back(parseBoolExpr());
-            }
-            else
-            {
+            } else {
                 assignNode->children.push_back(parseArithmeticExpr());
             }
-        }
-        else
-        {
+        } else {
             // 复合赋值运算符如 +=, -= 等
             assignNode->children.push_back(parseArithmeticExpr());
         }
 
-        consume(TOKEN_SEP, ";", "Expected ';' after assignment");
+        if (!inForLoop) {
+            consume(TOKEN_SEP, ";", "Expected ';' after assignment");
+        }
         return assignNode;
     }
 
@@ -489,37 +532,59 @@ private:
 
     // for语句
     TreeNode* parseForStmt() {
+        cerr << "DEBUG: Parsing for statement, current token: " << peek().value << endl;
         consume(TOKEN_KEYWORD, "for", "Expected 'for'");
         consume(TOKEN_SEP, "(", "Expected '(' after 'for'");
         
         TreeNode* forNode = new TreeNode(NODE_FOR);
         
-        // 初始化部分（允许空）
+        // 初始化部分
         if (!check(TOKEN_SEP, ";")) {
-            forNode->children.push_back(parseAssignStmt());
+            cerr << "DEBUG: Parsing for initializer" << endl;
+            if (check(TOKEN_KEYWORD, "int") || check(TOKEN_KEYWORD, "float") || check(TOKEN_KEYWORD, "bool")) {
+                cerr << "DEBUG: Found type declaration in for initializer" << endl;
+                // 使用parseDecl()来处理类型声明，parseDecl()已经消耗了分号
+                TreeNode* decl = parseDecl();
+                forNode->children.push_back(decl);
+            } else {
+                TreeNode* assign = parseAssignStmt();
+                forNode->children.push_back(assign);
+                // 只有非类型声明的情况才需要消耗分号
+                consume(TOKEN_SEP, ";", "Expected ';' after for initializer");
+            }
         } else {
             forNode->children.push_back(nullptr);
+            consume(TOKEN_SEP, ";", "Expected ';' after for initializer");
         }
-        consume(TOKEN_SEP, ";", "Expected ';' after for initializer");
         
-        // 条件部分（允许空）
+        // 条件部分
+        cerr << "DEBUG: Before condition, current token: " << peek().value << endl;
         if (!check(TOKEN_SEP, ";")) {
             forNode->children.push_back(parseBoolExpr());
         } else {
             forNode->children.push_back(nullptr);
         }
         consume(TOKEN_SEP, ";", "Expected ';' after for condition");
+        cerr << "DEBUG: After condition, current token: " << peek().value << endl;
         
-        // 迭代表达式（允许空）
+        // 迭代表达式
         if (!check(TOKEN_SEP, ")")) {
-            forNode->children.push_back(parseAssignStmt());
+            TreeNode* updateNode = parseAssignStmt(true); // 传递true表示在for循环中
+            forNode->children.push_back(updateNode);
         } else {
             forNode->children.push_back(nullptr);
         }
         consume(TOKEN_SEP, ")", "Expected ')' after for update");
         
-        // 循环体
-        forNode->children.push_back(parseStmt());
+        // 循环体 - 允许语句块或单条语句
+        if (check(TOKEN_SEP, "{")) {
+            forNode->children.push_back(parseBlock());
+        } else {
+            // 单条语句的情况
+            TreeNode* stmtNode = new TreeNode(NODE_BLOCK);
+            stmtNode->children.push_back(parseStmt());
+            forNode->children.push_back(stmtNode);
+        }
         
         return forNode;
     }
@@ -546,52 +611,29 @@ private:
     // write语句
     TreeNode *parseWriteStmt() {
         consume(TOKEN_KEYWORD, "write", "Expected 'write'");
-        consume(TOKEN_SEP, "(", "Expected '(' after 'write'");
-    
+        
         TreeNode *writeNode = new TreeNode(NODE_WRITE);
-    
-        do {
-            if (check(TOKEN_ID)) {
-                writeNode->children.push_back(new TreeNode(NODE_ID, advance().value));
-            }
-            else if (check(TOKEN_NUM)) {
-                writeNode->children.push_back(new TreeNode(NODE_NUM, advance().value));
-            }
-            else if (check(TOKEN_FLOAT)) {
-                writeNode->children.push_back(new TreeNode(NODE_FLOAT, advance().value));
-            }
-            else if (check(TOKEN_BOOL)) {
-                writeNode->children.push_back(new TreeNode(NODE_BOOLVAL, advance().value));
-            }
-            else {
-                error("Expected expression in write statement");
-            }
-        } while (match(TOKEN_SEP, ","));
-    
-        consume(TOKEN_SEP, ")", "Expected ')' after write arguments");
+        
+        // 处理带括号的write语句
+        if (match(TOKEN_SEP, "(")) {
+            do {
+                consume(TOKEN_ID, "Expected variable name in write statement");
+                writeNode->children.push_back(new TreeNode(NODE_ID, previous().value));
+            } while (match(TOKEN_SEP, ","));
+            consume(TOKEN_SEP, ")", "Expected ')' after write arguments");
+        } else {
+            // 直接读取标识符，不需要括号
+            consume(TOKEN_ID, "Expected variable name in write statement");
+            writeNode->children.push_back(new TreeNode(NODE_ID, previous().value));
+        }
+        
         consume(TOKEN_SEP, ";", "Expected ';' after write statement");
         return writeNode;
     }
 
-    // 语句块
-    TreeNode *parseBlock() {
-        consume(TOKEN_SEP, "{", "Expected '{' to start block");
-    
-        TreeNode *blockNode = new TreeNode(NODE_BLOCK);
-        while (!isAtEnd() && !check(TOKEN_SEP, "}")) {
-            TreeNode *stmt = parseStmt();
-            if (stmt) {
-                blockNode->children.push_back(stmt);
-            }
-        }
-    
-        consume(TOKEN_SEP, "}", "Expected '}' to end block");
-        return blockNode;
-    }
-
     // 语句序列
     TreeNode* parseStmt() {
-        if (match(TOKEN_SEP, "{")) {
+        if (check(TOKEN_SEP, "{")) {
             return parseBlock();
         } else if (check(TOKEN_KEYWORD, "if")) {
             return parseIfStmt();
@@ -606,11 +648,28 @@ private:
         } else if (check(TOKEN_ID)) {
             return parseAssignStmt();
         } else if (match(TOKEN_SEP, ";")) {
-            return new TreeNode(NODE_STMTS); // 空语句
+            // 修改这里，直接返回空语句节点而不调用parseArithmeticExpr()
+            return new TreeNode(NODE_STMTS, "empty_stmt"); 
         } else {
-            error("Expected statement");
+            error("Expected statement but found: " + peek().value);
             return nullptr;
         }
+    }
+
+    TreeNode *parseBlock() {
+        // 这里确保消耗{
+        consume(TOKEN_SEP, "{", "Expected '{' to start block");
+        TreeNode* blockNode = new TreeNode(NODE_BLOCK);
+        
+        while (!isAtEnd() && !check(TOKEN_SEP, "}")) {
+            TreeNode* stmt = parseStmt();
+            if (stmt) {
+                blockNode->children.push_back(stmt);
+            }
+        }
+        
+        consume(TOKEN_SEP, "}", "Expected '}' to end block");
+        return blockNode;
     }
 
 

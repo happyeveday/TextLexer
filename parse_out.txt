@@ -1,14 +1,18 @@
 [BLOCK]
   [DECLS]
-  [STMTS]
-    [IF]
+    [LIST]
+      [TYPE] int
+      [ID] a
+      [EXPR]
+        [NUM] 10
+    [LIST]
+      [TYPE] float
+      [ID] b
+      [EXPR]
+        [FLOAT] 3.14
+    [LIST]
+      [TYPE] bool
+      [ID] flag
       [BOOL]
-        [OP] >
-          [ID] a
-          [NUM] 5
-      [BLOCK]
-        [WRITE]
-          [ID] a
-      [BLOCK]
-        [WRITE]
-          [ID] b
+        [BOOLVAL] true
+  [STMTS]
