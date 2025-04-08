@@ -96,6 +96,10 @@ private:
     
         // 解析变量声明（允许带初始化）
         do {
+            // 检查标识符是否合法（不以数字开头）
+            if (peek().type == TOKEN_ERROR || isdigit(peek().value[0])) {
+                error("Invalid identifier name: " + peek().value);
+            }
             consume(TOKEN_ID, "Expected variable name");
             TreeNode* idNode = new TreeNode(NODE_ID, previous().value);
             declNode->children.push_back(idNode);
@@ -784,11 +788,9 @@ public:
 };
 
 // 从文件读取token序列
-vector<Token> readTokens(const string &filename)
-{
+vector<Token> readTokens(const string &filename) {
     ifstream inFile(filename);
-    if (!inFile)
-    {
+    if (!inFile) {
         cerr << "Can't open input file: " << filename << endl;
         exit(1);
     }
@@ -796,10 +798,8 @@ vector<Token> readTokens(const string &filename)
     vector<Token> tokens;
     string line;
 
-    while (getline(inFile, line))
-    {
-        if (line.empty() || line.find('(') == string::npos || line.find(')') == string::npos)
-        {
+    while (getline(inFile, line)) {
+        if (line.empty() || line.find('(') == string::npos || line.find(')') == string::npos) {
             continue;
         }
 
@@ -812,9 +812,6 @@ vector<Token> readTokens(const string &filename)
         string typeStr = line.substr(typeStart, typeEnd - typeStart);
         size_t end = line.rfind(')'); // 找到最后一个')'
         string value = line.substr(typeEnd + 1, end - typeEnd - 1);
-        value.erase(remove_if(value.begin(), value.end(), ::isspace), value.end());
-
-        // 去除值中的空格
         value.erase(remove_if(value.begin(), value.end(), ::isspace), value.end());
 
         TokenType type;
@@ -832,6 +829,8 @@ vector<Token> readTokens(const string &filename)
             type = TOKEN_OP;
         else if (typeStr == "6")
             type = TOKEN_SEP;
+        else if (typeStr == "7")  // 处理非法格式的token
+            type = TOKEN_ERROR;
         else
             type = TOKEN_ERROR;
 
